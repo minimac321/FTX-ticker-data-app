@@ -1,0 +1,31 @@
+version: '3'
+
+services:
+  ticker_data_app:
+    container_name: ticker_data_app
+    image: ticker_data_app
+    build: ./app
+    ports:
+      - "80:80"
+    environment: # Sets environment variable
+      - DATABASE_URL=postgresql://postgres:postgres@db:5432/postgres
+      - FLASK_ENV=development
+    depends_on:
+      - ticker_db
+
+  ticker_db:
+    container_name: ticker_db
+    image: postgres:12
+    ports:
+      - "5432:5432"
+    environment:
+      - POSTGRES_PASSWORD=postgres
+      - POSTGRES_USER=postgres
+      - POSTGRES_DB=postgres
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
+
+volumes:
+  pgdata: {}
+
