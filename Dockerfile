@@ -1,15 +1,21 @@
-FROM python:3.9.5
+FROM python:3.9
 
-# The environment variable ensures that the python output is set straight
-# to the terminal with out buffering it first
+
+
+
+FROM python:3.9
+
 ENV PYTHONBUFFERED 1
-#
+
+COPY requirements.txt .
+
+RUN pip install --upgrade pip
+
+# Do we need it ??
 # RUN apt-get update \
 #   && apt-get upgrade -y \
 #   && apt-get install -y libpq-dev gcc musl-dev libffi-dev \
 #   && apt-get clean
-
-COPY requirements.txt .
 
 RUN pip install -r requirements.txt
 

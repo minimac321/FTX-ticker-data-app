@@ -1,0 +1,12 @@
+flask
+psycopg2-binary
+Flask-SQLAlchemy
+pandas
+numpy
+python-dotenv
+psycopg2
+SQLAlchemy
+Databases
+gevent
+websocket-client
+datetime
