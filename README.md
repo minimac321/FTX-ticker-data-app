@@ -1,15 +1,79 @@
 # centauri-ticker-data-app
 Create an application which fetches ticket data, stores it in a database and create endpoints to fetch this data from
 
-<br>
 
-Program flow:
-- Start the main application docker image to host the endpoints, followed by the image for postgres 
-DB which can house the data.
-- The main application will trigger a streaming module which will spawn N threads which each open a
-websocket for a symbol and write data using the POST endpoint to the postgres DB  
-- To check the data available - we can use postman to check if the data is changing, and 
-even query with a selected time stamp.
+
+## Setup Guide
+
+Build the docker images
+```
+docker-compose build
+```
+
+Start the docker container
+```
+docker-compose up
+```
+
+
+Now our Database and flask application are running in a terminal
+
+We need to run out data streaming script with 
+```
+python ticker_data_streaming.py
+```
+Once the script is running, we can query the database for the latest data using any browser or [postman](https://www.postman.com/) 
+
+
+# Endpoint commands
+
+- Fetch all data:
+  - 127.0.0.1/symbol_spread
+
+
+- Fetch all data for a single symbol
+  - 127.0.0.1/symbol_spread/ETH/USD/
+
+
+- Fetch ASK price for closest entry using a timestamp
+  - 127.0.0.1/ETH/USD/ask?timestamp=1648995959
+
+
+- Fetch BID price for closest entry using a timestamp
+  - 127.0.0.1/ETH/USD/bid?timestamp=1648995959
+
+
+
+
+
+### TODO
+
+##### Code
+- Try get the main dockerfile to trigger the ticker_data_streaming.py or ingest that into the 
+app.py class
+- Doc Strings
+- Config type files
+- Check for available Symbols
+- Persistent data (volume attached?)
+
+
+
+- Doc Write up
+  - Why docker
+  - Why postgres and flask (pros vs cons)
+  - Why on a single table
+
+Improvements:
+- Code structure: Docker mainly to allow progress
+- FastAPI ?
+- More concurrency
+
+Issues / Limitations:
+- Docker
+
+
+
+<br>
 
 
 What to dicuss:
@@ -44,3 +108,8 @@ store
 SQL Statements:
 - select * from bid_ask;
 - INSERT INTO bid_ask (bid,ask,bid_size,ask_size,last,time,symbol,datetime) VALUES (116.63,116.67,66.06,69.84,116.695,1649355188.3697891,'SOL/USD','2022/04/07 18:13:08');
+
+
+
+## Questions:
+- Websocket vs RestAPI on FTX in terms of speed decay
