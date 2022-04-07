@@ -1,12 +1,12 @@
 flask
-psycopg2-binary
 Flask-SQLAlchemy
+SQLAlchemy
+psycopg2
+psycopg2-binary
 pandas
 numpy
 python-dotenv
-psycopg2
-SQLAlchemy
 Databases
 gevent
 websocket-client
-datetime
+websocket
