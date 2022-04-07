@@ -1,31 +1,28 @@
 version: '3'
 
 services:
-  ticker_data_app:
-    container_name: ticker_data_app
-    image: ticker_data_app
-    build: ./app
+  ticker_app:
+    container_name: ticker_app
+    restart: always
+    image: ticker_app
+    build: .
     ports:
       - "80:80"
     environment: # Sets environment variable
-      - DATABASE_URL=postgresql://postgres:postgres@db:5432/postgres
-      - FLASK_ENV=development
-    depends_on:
-      - ticker_db
+      - DATABASE_URL=postgresql://postgres:postgres@postgres_db:5432/postgres
+      - 'POSTGRES_HOST_AUTH_METHOD:trust'
+      - WORKING_DIR=working_dir
 
-  ticker_db:
-    container_name: ticker_db
-    image: postgres:12
+    depends_on:
+      - postgres_db
+
+  postgres_db:
+    container_name: postgres_db
+    image: postgres:12  # latest?
     ports:
       - "5432:5432"
     environment:
       - POSTGRES_PASSWORD=postgres
       - POSTGRES_USER=postgres
       - POSTGRES_DB=postgres
-    volumes:
-      - pgdata:/var/lib/postgresql/data
-
-
-volumes:
-  pgdata: {}
-
+      - 'POSTGRES_HOST_AUTH_METHOD:trust'
