@@ -110,9 +110,13 @@ def get_json_from_object(symbol_spread_entry, list_of_columns):
     return object_dict
 
 
-# Example: 127.0.0.1/symbol_spread
 @app.route('/symbol_spread', methods=['GET'])
 def get_all_items():
+    """
+    Fetch all items from symbol_spread table
+
+    Request: 127.0.0.1/symbol_spread
+    """
     try:
         symbol_spread_results = SymbolSpreadModel.query.all()
         results = [get_json_from_object(symbol_spread_entry, SYMBOL_SPREAD_TABLE_FIELDS)
@@ -124,9 +128,15 @@ def get_all_items():
         return {"message": "Failed to fetch all items"}, 404
 
 
-# Example: http://127.0.0.1/symbol_spread/SOL/USD/
 @app.route('/symbol_spread/<path:symbol>/', methods=['GET'])
 def get_items_from_symbol(symbol):
+    """
+    Fetch all items which have the given symbol
+
+    Request: http://127.0.0.1/symbol_spread/SOL/USD/
+
+    :param str symbol: Symbol to filter entries by
+    """
     try:
         symbol_spread_results = SymbolSpreadModel.query.filter_by(symbol=symbol)
         results = [get_json_from_object(symbol_spread_entry, SYMBOL_SPREAD_TABLE_FIELDS)
@@ -138,10 +148,17 @@ def get_items_from_symbol(symbol):
         return {"message": "Failed to get items from symbol"}, 404
 
 
-# Example: 127.0.0.1/symbol_spread/ETH/USD/bid
-# Example: 127.0.0.1/symbol_spread/ETH/USD/bid?timestamp=1648995959
 @app.route('/symbol_spread/<path:symbol>/bid', methods=['GET'])
 def get_items_with_query_timestamp_bid(symbol):
+    """
+    Fetch the bid price of items which have the given symbol. If a timestamp is present in the
+    query, find the closest matching entry in the database and return that entry
+
+    Request: 127.0.0.1/symbol_spread/ETH/USD/bid
+    Request: 127.0.0.1/symbol_spread/ETH/USD/bid?timestamp=1648995959
+
+    :param str symbol: Symbol to filter entries by
+    """
     try:
         if request.args:
             query_dict = request.args.to_dict()
@@ -172,10 +189,17 @@ def get_items_with_query_timestamp_bid(symbol):
         return {"message": "Failed to get ticker info for a symbol"}, 404
 
 
-# Example: 127.0.0.1/symbol_spread/ETH/USD/ask
-# Example: 127.0.0.1/symbol_spread/ETH/USD/ask?timestamp=1648995959
 @app.route('/symbol_spread/<path:symbol>/ask', methods=['GET'])
 def get_items_with_query_timestamp_ask(symbol):
+    """
+    Fetch the ask price of most recent items in the db which have the given symbol. If a timestamp
+    is present in the query, find the closest matching entry in the database and return that entry.
+
+    Request: 127.0.0.1/symbol_spread/ETH/USD/ask
+    Request: 127.0.0.1/symbol_spread/ETH/USD/ask?timestamp=1648995959
+
+    :param str symbol: Symbol to filter entries by
+    """
     try:
         if request.args:
             query_dict = request.args.to_dict()
@@ -206,9 +230,15 @@ def get_items_with_query_timestamp_ask(symbol):
         return {"message": "Failed to get ticker info for a symbol"}, 404
 
 
-# Example: http://127.0.0.1/symbol_spread/1
 @app.route('/symbol_spread/<int:id>/', methods=['GET'])
 def get_item_from_id(id):
+    """
+    Fetch the item with the corresponding id
+
+    Request: http://127.0.0.1/symbol_spread/1
+
+    :param int id: ID to find in the table
+    """
     try:
         symbol_spread_entry = SymbolSpreadModel.query.get_or_404(id)
         result = get_json_from_object(symbol_spread_entry, SYMBOL_SPREAD_TABLE_FIELDS)
@@ -218,9 +248,15 @@ def get_item_from_id(id):
         return {"message": "Failed to get entry from id"}, 404
 
 
-# Example: http://127.0.0.1/symbol_spread/2 - with delete
 @app.route('/symbol_spread/<int:id>/', methods=['DELETE'])
 def delete_item(id):
+    """
+    Delete the item with the corresponding id
+
+    Request: http://127.0.0.1/symbol_spread/2 - with delete
+
+    :param int id: ID to find in the table
+    """
     try:
         db.session.query(SymbolSpreadModel).filter_by(id=id).delete()
         db.session.commit()
@@ -230,44 +266,8 @@ def delete_item(id):
         return {"message": "Failed to delete item"}, 404
 
 
-# Not working
-# @app.route('/symbol_spread', methods=['POST'])
-# def create_item():
-#     if request.method == 'POST':
-#         try:
-#             body = request.get_json(force=True)
-#             body = dict(body)
-#
-#             model_entry = SymbolSpreadModel(
-#                 body.get('bid'),
-#                 body.get('ask'),
-#                 body.get('bid_size'),
-#                 body.get('ask_size'),
-#                 body.get('last'),
-#                 body.get('unix_timestamp'),
-#                 body.get('symbol'),
-#                 body.get('datetime'),
-#             )
-#             db.session.add(model_entry)
-#             db.session.commit()
-#             return {"Success": f"Item created: {body}"}
-#         except Exception as e:
-#             print(e)
-#             return {"message": "Failed in create_item()"}
-#
-#
-# @app.route('/symbol_spread/<int:id>/', methods=['PUT'])
-# def update_item(id):
-#     try:
-#         body = request.get_json()
-#         db.session.query(SymbolSpreadModel).filter_by(id=id).update(
-#             dict(bid=body['bid'], ask=body['ask'])
-#         )
-#         db.session.commit()
-#         return {"Success": f"Item Updated"}
-#     except Exception as e:
-#         print(e)
-#         return {"message": "Failed in update_item()"}
-
 if __name__ == "__main__":
+    # Create a fresh database
+    reset_database(db=db, populate_csv_initial_data=False)
+
     app.run(debug=True, host='0.0.0.0', port=80)

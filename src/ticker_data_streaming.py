@@ -28,7 +28,7 @@ def unix_timestamp_to_datetime(unix_timestamp):
 
     :param float unix_timestamp: The unix timestamp to convert
     :rtype: str
-    :return: A datatome string which is more human-understandable
+    :return: A datetime string which is more human-understandable
     """
     if unix_timestamp is None:
         return None
@@ -45,7 +45,7 @@ def write_entry_data_to_db(db_connection, symbol, bid_ask_data):
     :param symbol: The symbol which data was collected for
     :param dict bid_ask_data: The latest ticker information on the symbol
     """
-    datetime_str = unix_timestamp_to_datetime(bid_ask_data.get("unix_timestamp"))
+    datetime_str = unix_timestamp_to_datetime(bid_ask_data.get("time"))
 
     values_str_list = ",".join([str(field) for field in bid_ask_data.values()])
     bid_ask_entry_values = f"{values_str_list},'{symbol}','{datetime_str}'"
@@ -53,23 +53,18 @@ def write_entry_data_to_db(db_connection, symbol, bid_ask_data):
     sql = f"INSERT INTO {SYMBOL_SPREAD_TABLE_NAME} ({','.join(SYMBOL_SPREAD_TABLE_FIELDS)}) " \
           f"VALUES ({bid_ask_entry_values})"
     main_logger.info(f"Executing SQL: {sql}")
-    print(f"Executing SQL: {sql}")
     db_connection.cursor.execute(sql)
-    db_connection.connection.commit()
 
 
-async def subscribe_to_symbol_ws_and_write_to_db(db_connection, websocket, symbol, symbol_id,
-                                                 ticker_interval):
+async def subscribe_to_symbol_ws_and_write_to_db(db_connection, websocket, symbol, ticker_interval):
     """
     Fetch ticker data and write to the database
 
     :param DatabaseConnection db_connection: A connection to a database
     :param FtxWebsocketClient websocket:  The connected websocket
     :param symbol: The symbol to stream data for
-    :param symbol_id: The symbol unique ID
     :param float ticker_interval: The interval between consecutive calls to for a symbol to the
         websocket
-    :return:
     """
     while True:
         bid_ask_data = websocket.get_ticker(market=symbol)
@@ -98,7 +93,7 @@ async def stream_and_write_data_to_db(db_connection, websocket, ticker_symbols):
         ticker_symbol = ticker_symbol_obj.get_symbol_name()
         streaming_coroutine = subscribe_to_symbol_ws_and_write_to_db(
             db_connection=db_connection, websocket=websocket, symbol=ticker_symbol,
-            symbol_id=symbol_id, ticker_interval=ticker_symbol_obj.get_symbol_ticker_interval()
+            ticker_interval=ticker_symbol_obj.get_symbol_ticker_interval()
         )
         async_symbol_streaming_coroutines.append(streaming_coroutine)
 
@@ -146,7 +141,7 @@ def write_symbol_data_to_postgres_db(db_connection, ticker_symbols):
 
 def get_all_table_data(cursor, table_name):
     """
-    Extract data from a table using the given curssor
+    Extract data from a table using the given cursor
 
     :param psycopg2._psycopg.connection.connection cursor: Database cursor
     :param str table_name: Table name to extract data from
@@ -205,27 +200,26 @@ def get_symbol_objects_from_config(file_name="ticker_config.json"):
         symbols_json_config = json.loads(config_file.read())
 
         ticker_symbols_list = []
-        for symbol_name, symbol_info in symbols_json_config["Symbols"].itmes():
+        for symbol_name, symbol_info in symbols_json_config["Symbols"].items():
             main_logger.info(f"symbol_name: {symbol_name}")
             ticker_symbol = TickerSymbol(symbol_name, symbol_info)
-            ticker_symbols.append(ticker_symbol)
+            ticker_symbols_list.append(ticker_symbol)
 
         return ticker_symbols_list
     except FileNotFoundError:
-        main_logger.error(f"No config file found at {config_file_name}")
+        main_logger.error(f"No config file found at {file_name}")
         return []
 
 
-if __name__ == "__main__":
-
+def fetch_symbol_data():
+    """
+    Main function to create a connection and stream data to the postgres db
+    """
     config_file_name = "ticker_config.json"
     ticker_symbols = get_symbol_objects_from_config(config_file_name)
-
     main_logger.info(f"Streaming data for : {[ts.get_symbol_name() for ts in ticker_symbols]}")
 
-    # postgres_conn, db_cursor = get_postgres_connection_and_cursor()
-
-    db_connection = DatabaseConnection(enable_autocommit=False)
+    db_connection = DatabaseConnection(enable_autocommit=True)
 
     get_postgres_current_data = True
     if get_postgres_current_data:
@@ -237,4 +231,6 @@ if __name__ == "__main__":
     if len(ticker_symbols) > 0:
         write_symbol_data_to_postgres_db(db_connection=db_connection, ticker_symbols=ticker_symbols)
 
-    print("DOOOOOOOOOOOOOOOOOOONE")
+
+if __name__ == "__main__":
+    fetch_symbol_data()
