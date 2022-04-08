@@ -5,6 +5,12 @@ Create an application which fetches ticket data, stores it in a database and cre
 
 ## Setup Guide
 
+Create a `.env` file in the root directory to hold your [FTX](https://ftx.com/en) API credentials as below.
+```
+FTX_API_KEY=XYZ
+FTX_API_SECRET=123
+```
+
 Build the docker images
 ```
 docker-compose build
@@ -54,7 +60,7 @@ app.py class
 - Doc Strings
 - Config type files
 - Check for available Symbols
-- Persistent data (volume attached?)
+- Persistent data (volume attached?) - Remove db.drop_all()??
 
 
 
@@ -62,6 +68,8 @@ app.py class
   - Why docker
   - Why postgres and flask (pros vs cons)
   - Why on a single table
+  - Speak about:
+    - To persist the data beyond the life of the container we configured a volume. This config will bind postgres_data to the "/var/lib/postgresql/data/" directory in the container.
 
 Improvements:
 - Code structure: Docker mainly to allow progress
@@ -74,13 +82,6 @@ Issues / Limitations:
 
 
 <br>
-
-
-What to dicuss:
-- How this changes from local to Cloud
-- Why I used postgres and Flask
-- 
-
 
 
 Link: [https://phoenixnap.com/kb/mysql-docker-container]
