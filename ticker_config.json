@@ -1,0 +1,11 @@
+{
+  "Symbols":
+  {
+    "ETH/USD": {
+      "ticker_interval" : 1
+    },
+    "SOL/USD": {
+      "ticker_interval" : 1
+    }
+  }
+}
