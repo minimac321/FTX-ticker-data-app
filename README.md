@@ -17,10 +17,10 @@ cd centauri-ticker-data-app
 # Create a python virtual environment and activate it
 virtualenv -p /usr/bin/python3.9 ticker_app_env
 
-
 # Install all required dependencies
 pip install -r requirements.txt
 ```
+
 
 Create a `.env` file in the project root directory to hold your FTX API credentials as below:
 ```
@@ -47,7 +47,7 @@ python src/ticker_data_streaming.py
 Once the script is running, we can query the database for the latest data using any browser or [postman](https://www.postman.com/) 
 
 
-# Endpoint commands
+## Endpoint commands
 
 - Fetch all data:
   - 127.0.0.1/symbol_spread
@@ -67,3 +67,9 @@ Once the script is running, we can query the database for the latest data using 
 
 - Fetch BID price for closest entry using a timestamp
   - 127.0.0.1/symbol_spread/ETH/USD/bid?timestamp=1648995959
+
+
+## Postgres DB
+
+To take a look under the hood at the actual postgres database use:
+- docker exec -it postgres_db psql -U postgres
