@@ -45,7 +45,7 @@ def write_entry_data_to_db(db_connection, symbol, bid_ask_data):
     :param symbol: The symbol which data was collected for
     :param dict bid_ask_data: The latest ticker information on the symbol
     """
-    datetime_str = unix_timestamp_to_datetime(bid_ask_data.get("time"))
+    datetime_str = unix_timestamp_to_datetime(bid_ask_data.get("unix_timestamp"))
 
     values_str_list = ",".join([str(field) for field in bid_ask_data.values()])
     bid_ask_entry_values = f"{values_str_list},'{symbol}','{datetime_str}'"

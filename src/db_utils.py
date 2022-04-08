@@ -23,7 +23,7 @@ def populate_db_table_with_csv_data(db, table_name,
 # )
 
 def reset_database(db, populate_csv_initial_data=False):
-    # db.drop_all()
+    db.drop_all()
     db.create_all()
     db.session.commit()
 
