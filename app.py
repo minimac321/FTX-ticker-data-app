@@ -1,30 +1,24 @@
 import os
 
-from flask import request, jsonify, make_response, Flask
-import pandas as pd
+import numpy as np
+from flask import request, Flask
 from flask_sqlalchemy import SQLAlchemy
+from sqlalchemy import Column, Float, Integer, String
 
+from constants import SYMBOL_SPREAD_TABLE_FIELDS, SYMBOL_SPREAD_TABLE_NAME
+from db_utils import reset_database
 
 app = Flask(__name__)
 
 app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get('DATABASE_URL')
 db = SQLAlchemy(app)
-# TODO find out how to spawn a table and use the .add() functionality
-# db_session = sessionmaker(engine) - ?
-# db_session = db.session           - ?
-
-TABLE_NAME = "bid_ask"
-
-from sqlalchemy import Column, Float, Integer, String
-
-BID_ASK_FIELDS = ['bid', 'ask', 'bid_size', 'ask_size', 'last', 'time', 'symbol', 'datetime']
 
 
-class BidAskModel(db.Model):
+class SymbolSpreadModel(db.Model):
     """
-    Defines the bid_ask model
+    Defines the symbol_spread model
     """
-    __tablename__ = TABLE_NAME
+    __tablename__ = SYMBOL_SPREAD_TABLE_NAME
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     bid = Column(Float, nullable=True)
@@ -37,10 +31,22 @@ class BidAskModel(db.Model):
     datetime = Column(String, nullable=True)
 
     def __init__(self, bid, ask, bid_size, ask_size, last, time, symbol, datetime):
+        """
+        Init method for SymbolSpreadModel
+
+        :param int bid: Best bid price
+        :param float ask: Best ask price
+        :param float bid_size: Bid Size
+        :param float ask_size: Ask Size
+        :param float last:
+        :param float time: Unix timestamp
+        :param str symbol: Symbol pairing between base and quote currency
+        :param str datetime: Datetime string
+        """
         self.bid = bid
         self.ask = ask
         self.bid_size = bid_size
-        self.askSize = ask_size
+        self.ask_size = ask_size
         self.last = last
         self.time = time
         self.symbol = symbol
@@ -48,102 +54,182 @@ class BidAskModel(db.Model):
 
     def to_json(self):
         """
-        Return item in serializeable format
+        Return item in json format
+
+        :rtype: dict
+        :return: json serialized SymbolSpreadModel object
         """
         return {"id": self.id, "symbol": self.symbol, "bid": self.bid, "ask": self.ask,
                 "time": self.time}
 
 
-db.drop_all()
-db.create_all()
-db.session.commit()
+# Create a fresh database
+reset_database(db, populate_csv_initial_data=False)
 
 
-def add_and_commit_new_entry(db, entry):
-    new_entry = BidAskModel(**entry)
-    db.session.add(new_entry)
-    db.commit()
+def get_closest_timestamp_entry(query_timestamp, symbol=None):
+    if symbol is None:
+        results = SymbolSpreadModel.query.all()
+    else:
+        results = SymbolSpreadModel.query.filter_by(symbol=symbol)
+
+    first_greater_timestamp = results.filter(
+        query_timestamp <= SymbolSpreadModel.time
+    ).order_by(SymbolSpreadModel.time.asc()).first()
+    first_smaller_timestamp = results.filter(
+        query_timestamp > SymbolSpreadModel.time
+    ).order_by(SymbolSpreadModel.time.desc()).first()
+
+    if not first_greater_timestamp and not first_smaller_timestamp:
+        return {"message": f"Error - Unable to find any matching entries for timestamp: "
+                           f"{query_timestamp}"}
+
+    greater_timestamp_diff = first_greater_timestamp.time - query_timestamp \
+        if first_greater_timestamp else np.inf
+
+    smaller_timestamp_diff = query_timestamp - first_smaller_timestamp.time \
+        if first_smaller_timestamp else np.inf
+
+    if greater_timestamp_diff < smaller_timestamp_diff:
+        return first_greater_timestamp
+    else:
+        return first_smaller_timestamp
 
 
-add_csv_data = False
-if add_csv_data:
-    with open("bid_ask_initial_data.csv", 'r') as file:
-        data_df = pd.read_csv(file)
-        for i, row in data_df.iterrows():
-            del row["id"]
-            print("row", row)
-            add_and_commit_new_entry(db, row)
+def get_json_from_object(symbol_spread_entry, list_of_columns):
+    """
+    Return a json format of the given entry
 
-    data_df.to_sql(TABLE_NAME, con=db.engine, index=False, index_label='id', if_exists='replace')
-
-# TODO:
-"""
-@app.route('/bid_ask/<ticker_name>/bid', methods=['GET'])
-@app.route('/bid_ask/<ticker_name>/ask', methods=['GET'])
-
-Use make_response through out
-
-Add doc strings
-"""
-
-@app.route('/')
-def home():
-    return make_response(jsonify({'message': 'Welcome to home page'}), 200)
-
-
-def get_json_from_object(bid_ask_entry, list_of_columns):
-    bid_ask_entry_dict = bid_ask_entry.__dict__
+    :param symbol_spread_entry:
+    :param list_of_columns:
+    :return:
+    """
+    symbol_spread_entry_dict = symbol_spread_entry.__dict__
     object_dict = {}
     for col in list_of_columns:
-        object_dict.update({col: bid_ask_entry_dict.get(col)})
+        object_dict.update({col: symbol_spread_entry_dict.get(col)})
     return object_dict
 
 
-@app.route('/bid_ask', methods=['GET'])
+# Example: 127.0.0.1/symbol_spread
+@app.route('/symbol_spread', methods=['GET'])
 def get_items():
     if request.method == 'GET':
         try:
-            bid_ask_results = BidAskModel.query.all()
-            results = [get_json_from_object(bid_ask_entry, BID_ASK_FIELDS)
-                       for bid_ask_entry in bid_ask_results]
+            symbol_spread_results = SymbolSpreadModel.query.all()
+            results = [get_json_from_object(symbol_spread_entry, SYMBOL_SPREAD_TABLE_FIELDS)
+                       for symbol_spread_entry in symbol_spread_results]
 
-            return {"count": len(results), "bid_ask_entries": results}
+            return {"count": len(results), "symbol_spread_entries": results}
         except Exception as e:
             print(e)
             return {"message": "Failed in get_items()"}
 
 
-@app.route('/bid_ask/<int:id>/', methods=['GET'])
+# Example: 127.0.0.1/ETH/USD/bid?timestamp=1648995959
+@app.route('/<path:symbol>/bid', methods=['GET'])
+def get_items_with_query_timestamp_bid(symbol):
+    try:
+        if request.method == 'GET':
+            if request.args:
+                query_dict = request.args.to_dict()
+                query_timestamp = float(query_dict.get("timestamp"))
+
+                closest_entry = get_closest_timestamp_entry(
+                    query_timestamp, symbol
+                )
+                if closest_entry is None:
+                    return {"message": f"Error - Unable to find any matching entries for timestamp:"
+                                       f"{query_timestamp}"}
+                closest_entry_json = get_json_from_object(closest_entry,
+                                                          ['bid', 'ask', 'time', 'symbol'])
+
+                return {"message": f"Closest Bid price: {closest_entry_json['bid']} for entry:"
+                                   f" {closest_entry_json}"}
+            else:
+                # Just get the latest bid
+                latest_symbol_spread_entry = SymbolSpreadModel.query.all().\
+                    order_by(SymbolSpreadModel.time.desc()).first()
+                latest_result_json = get_json_from_object(latest_symbol_spread_entry,
+                                                          SYMBOL_SPREAD_TABLE_FIELDS)
+                latest_bid = latest_symbol_spread_entry.bid
+                return {"message": f"Closest Bid price: {latest_bid} for"
+                                   f" entry: {latest_result_json}"}
+
+    except Exception as e:
+        print(e)
+        return {"message": "Failed in get_items_with_query_timestamp_bid()"}
+
+
+# Example: 127.0.0.1/ETH/USD/ask?timestamp=1648995959
+@app.route('/<path:symbol>/ask', methods=['GET'])
+def get_items_with_query_timestamp_ask(symbol):
+    try:
+        if request.method == 'GET':
+            if request.args:
+                query_dict = request.args.to_dict()
+                query_timestamp = float(query_dict.get("timestamp"))
+
+                closest_entry = get_closest_timestamp_entry(
+                    query_timestamp, symbol
+                )
+                if closest_entry is None:
+                    return {"message": f"Error - Unable to find any matching entries for timestamp:"
+                                       f"{query_timestamp}"}
+                closest_entry_json = get_json_from_object(closest_entry,
+                                                          ['bid', 'ask', 'time', 'symbol'])
+
+                return {"message": f"Closest Ask price: {closest_entry_json['ask']} for entry:"
+                                   f" {closest_entry_json}"}
+            else:
+                # Just get the latest ask
+                latest_symbol_spread_entry = SymbolSpreadModel.query.all().\
+                    order_by(SymbolSpreadModel.time.desc()).first()
+                latest_result_json = get_json_from_object(latest_symbol_spread_entry,
+                                                          SYMBOL_SPREAD_TABLE_FIELDS)
+                latest_ask = latest_symbol_spread_entry.ask
+                return {"message": f"Closest Ask price: {latest_ask} for "
+                                   f"entry: {latest_result_json}"}
+
+    except Exception as e:
+        print(e)
+        return {"message": "Failed in get_items_with_query_timestamp_ask() - with query str"}
+
+
+# Example: http://127.0.0.1/symbol_spread/11/
+@app.route('/symbol_spread/<int:id>/', methods=['GET'])
 def get_item_from_id(id):
     if request.method == 'GET':
         try:
-            bid_ask_entry = BidAskModel.query.get_or_404(id)
-            result = get_json_from_object(bid_ask_entry, BID_ASK_FIELDS)
-            return {"bid_ask_entries": result}
+            symbol_spread_entry = SymbolSpreadModel.query.get_or_404(id)
+            result = get_json_from_object(symbol_spread_entry, SYMBOL_SPREAD_TABLE_FIELDS)
+            return {"symbol_spread_entries": result}
         except Exception as e:
             print(e)
             return {"message": "Failed in get_item_from_id()"}
 
 
-@app.route('/bid_ask_symbol/<path:symbol>/', methods=['GET'])
+# Example: http://127.0.0.1/symbol_spread/SOL/USD/
+@app.route('/symbol_spread/<path:symbol>/', methods=['GET'])
 def get_items_from_symbol(symbol):
     if request.method == 'GET':
         try:
-            bid_ask_results = BidAskModel.query.filter_by(symbol=symbol)
-            results = [get_json_from_object(bid_ask_entry, BID_ASK_FIELDS)
-                       for bid_ask_entry in bid_ask_results]
-            return {"bid_ask_entries": results}
+            symbol_spread_results = SymbolSpreadModel.query.filter_by(symbol=symbol)
+            results = [get_json_from_object(symbol_spread_entry, SYMBOL_SPREAD_TABLE_FIELDS)
+                       for symbol_spread_entry in symbol_spread_results]
+            return {"count": len(results), "symbol_spread_entries": results}
 
         except Exception as e:
             print(e)
             return {"message": "Failed in get_items_from_symbol()"}
 
 
-@app.route('/bid_ask/<int:id>/', methods=['DELETE'])
+# Example: http://127.0.0.1/symbol_spread/2 - with delete
+@app.route('/symbol_spread/<int:id>/', methods=['DELETE'])
 def delete_item(id):
     if request.method == 'DELETE':
         try:
-            db.session.query(BidAskModel).filter_by(id=id).delete()
+            db.session.query(SymbolSpreadModel).filter_by(id=id).delete()
             db.session.commit()
             return {"Success": f"Item {id} deleted"}
         except Exception as e:
@@ -152,44 +238,43 @@ def delete_item(id):
 
 
 # Not working
-@app.route('/bid_ask', methods=['POST'])
-def create_item():
-    if request.method == 'POST':
-        try:
-            body = request.get_json(force=True)
-            body = dict(body)
-            # TODO: Add some assertion testing here on the actual data input
-            model_entry = BidAskModel(
-                body.get('bid'),
-                body.get('ask'),
-                body.get('bid_size'),
-                body.get('ask_size'),
-                body.get('last'),
-                body.get('time'),
-                body.get('symbol'),
-                body.get('datetime'),
-            )
-            db.session.add(model_entry)
-            db.session.commit()
-            return {"Success": f"Item created: {body}"}
-        except Exception as e:
-            print(e)
-            return {"message": "Failed in create_item()"}
-
-
-@app.route('/bid_ask/<int:id>/', methods=['PUT'])
-def update_item(id):
-    try:
-        body = request.get_json()
-        db.session.query(BidAskModel).filter_by(id=id).update(
-            dict(bid=body['bid'], ask=body['ask'])
-        )
-        db.session.commit()
-        return {"Success": f"Item Updated"}
-    except Exception as e:
-        print(e)
-        return {"message": "Failed in update_item()"}
-
+# @app.route('/symbol_spread', methods=['POST'])
+# def create_item():
+#     if request.method == 'POST':
+#         try:
+#             body = request.get_json(force=True)
+#             body = dict(body)
+#
+#             model_entry = SymbolSpreadModel(
+#                 body.get('bid'),
+#                 body.get('ask'),
+#                 body.get('bid_size'),
+#                 body.get('ask_size'),
+#                 body.get('last'),
+#                 body.get('time'),
+#                 body.get('symbol'),
+#                 body.get('datetime'),
+#             )
+#             db.session.add(model_entry)
+#             db.session.commit()
+#             return {"Success": f"Item created: {body}"}
+#         except Exception as e:
+#             print(e)
+#             return {"message": "Failed in create_item()"}
+#
+#
+# @app.route('/symbol_spread/<int:id>/', methods=['PUT'])
+# def update_item(id):
+#     try:
+#         body = request.get_json()
+#         db.session.query(SymbolSpreadModel).filter_by(id=id).update(
+#             dict(bid=body['bid'], ask=body['ask'])
+#         )
+#         db.session.commit()
+#         return {"Success": f"Item Updated"}
+#     except Exception as e:
+#         print(e)
+#         return {"message": "Failed in update_item()"}
 
 if __name__ == "__main__":
-    app.run(debug=True, host='0.0.0.0')
+    app.run(debug=True, host='0.0.0.0', port=80)
