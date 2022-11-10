@@ -1,4 +1,4 @@
-# centauri-ticker-data-app
+# FTX-ticker-data-app
 Create an application which fetches ticket data, stores it in a database and create endpoints to 
 read this data live
 
